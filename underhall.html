@@ -1,0 +1,669 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Underhållsplan & Prioriteringsmatris</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        brand: {
+                            50: '#f0fdf4',
+                            100: '#dcfce7',
+                            500: '#22c55e',
+                            600: '#16a34a',
+                            700: '#15803d',
+                            900: '#14532d',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+        body { font-family: 'Inter', sans-serif; }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-800 min-h-screen flex flex-col">
+
+    <!-- Header -->
+    <header class="bg-slate-900 text-white shadow-lg border-b border-slate-800">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-5 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+            <div>
+                <div class="flex items-center gap-3">
+                    <div class="p-2 bg-emerald-500 rounded-lg text-slate-900 font-bold">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5m0 0h5m0 0v-5a2 2 0 012-2h2a2 2 0 012 2v5" />
+                        </svg>
+                    </div>
+                    <div>
+                        <div class="flex items-center gap-2">
+                            <h1 class="text-2xl font-bold tracking-tight">Fastighetens Underhållsplan</h1>
+                            <span id="sync-status" class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                                <span class="w-2 h-2 rounded-full bg-amber-400 animate-pulse"></span> Ansluter till molnet...
+                            </span>
+                        </div>
+                        <p class="text-slate-400 text-xs mt-0.5">Gemensam prioritering i realtid baserad på Brådska, Följdskade risk, Enkelhet & Kostnad</p>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="flex flex-wrap gap-2">
+                <button onclick="window.exportToCSV()" class="inline-flex items-center gap-2 bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors shadow-sm">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
+                    Exportera till Excel (CSV)
+                </button>
+                <button onclick="window.confirmReset()" class="inline-flex items-center gap-2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-sm font-medium px-3 py-2 rounded-lg transition-colors border border-slate-700">
+                    Återställ Demo-data
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 flex-grow w-full space-y-8">
+
+        <!-- Summary KPI Cards -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex flex-col justify-between">
+                <span class="text-xs font-semibold uppercase tracking-wider text-slate-500">Totalt Antal Åtgärder</span>
+                <div class="flex items-baseline justify-between mt-2">
+                    <span id="kpi-total-items" class="text-3xl font-extrabold text-slate-900">0</span>
+                    <span class="text-xs text-slate-500">i underhållsplanen</span>
+                </div>
+            </div>
+
+            <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex flex-col justify-between">
+                <span class="text-xs font-semibold uppercase tracking-wider text-emerald-600">Snabba Vinster (Quick Wins)</span>
+                <div class="flex items-baseline justify-between mt-2">
+                    <span id="kpi-quick-wins" class="text-3xl font-extrabold text-emerald-600">0</span>
+                    <span class="text-xs text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded font-medium">Prioritera nu</span>
+                </div>
+            </div>
+
+            <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex flex-col justify-between">
+                <span class="text-xs font-semibold uppercase tracking-wider text-amber-600">Akuta / Hög Risk</span>
+                <div class="flex items-baseline justify-between mt-2">
+                    <span id="kpi-urgent" class="text-3xl font-extrabold text-amber-600">0</span>
+                    <span class="text-xs text-amber-700 bg-amber-50 px-2 py-0.5 rounded font-medium">Risk för skada</span>
+                </div>
+            </div>
+
+            <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex flex-col justify-between">
+                <span class="text-xs font-semibold uppercase tracking-wider text-slate-500">Beräknad Totalbudget</span>
+                <div class="flex items-baseline justify-between mt-2">
+                    <span id="kpi-total-cost" class="text-2xl font-extrabold text-slate-900">0 kr</span>
+                    <span class="text-xs text-slate-400">uppskattat</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Matrix Scoring Explanation -->
+        <div class="bg-amber-50/60 border border-amber-200 rounded-xl p-4 text-sm text-amber-900 flex flex-col md:flex-row md:items-center justify-between gap-3">
+            <div class="flex items-start gap-3">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-amber-600 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <div>
+                    <strong class="font-semibold">Hur beräknas Prioriterings-Index?</strong>
+                    <p class="text-xs text-amber-800 mt-0.5">
+                        <code class="bg-amber-100 px-1 py-0.5 rounded text-amber-900">Prio-Index = (Brådskegrad × 1.5) + (Följdskaderisk × 1.5) + Enkelhet + Kostnadsscore</code>. 
+                        Maxpoäng är 25. Ändringar du eller kollegor gör syns direkt för alla!
+                    </p>
+                </div>
+            </div>
+            <div class="flex items-center gap-2 text-xs font-medium shrink-0">
+                <span class="px-2 py-1 bg-emerald-100 text-emerald-800 rounded">20-25: Quick Win / Akut</span>
+                <span class="px-2 py-1 bg-blue-100 text-blue-800 rounded">14-19: Planera</span>
+                <span class="px-2 py-1 bg-slate-200 text-slate-700 rounded">&lt;14: Låg prio</span>
+            </div>
+        </div>
+
+        <!-- Controls & Add Item Section -->
+        <div class="bg-white rounded-xl border border-slate-200 shadow-sm p-5 space-y-4">
+            <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                <h2 class="text-lg font-bold text-slate-900 flex items-center gap-2">
+                    <span>Underhållsåtgärder</span>
+                </h2>
+
+                <button onclick="window.openModal()" class="inline-flex items-center gap-2 bg-slate-900 hover:bg-slate-800 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors shadow-sm ml-auto md:ml-0">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+                    </svg>
+                    Lägg till ny åtgärd
+                </button>
+            </div>
+
+            <!-- Filters -->
+            <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 pt-2 border-t border-slate-100">
+                <div>
+                    <label class="block text-xs font-semibold text-slate-500 mb-1">Filtrera på Kategori</label>
+                    <select id="filter-category" onchange="window.renderTable()" class="w-full text-sm border border-slate-300 rounded-lg p-2 focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+                        <option value="Alla">Alla Kategorier</option>
+                        <option value="Invändigt">Invändigt</option>
+                        <option value="Utvändigt">Utvändigt</option>
+                        <option value="Utemiljö">Utemiljö</option>
+                    </select>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-semibold text-slate-500 mb-1">Filtrera på Status</label>
+                    <select id="filter-status" onchange="window.renderTable()" class="w-full text-sm border border-slate-300 rounded-lg p-2 focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+                        <option value="Alla">Alla Statusar</option>
+                        <option value="Ej påbörjad">Ej påbörjad</option>
+                        <option value="Pågående">Pågående</option>
+                        <option value="Klar">Klar</option>
+                    </select>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-semibold text-slate-500 mb-1">Sortera efter</label>
+                    <select id="sort-by" onchange="window.renderTable()" class="w-full text-sm border border-slate-300 rounded-lg p-2 focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+                        <option value="prio-desc">Prio-Index (Högst först)</option>
+                        <option value="prio-asc">Prio-Index (Lägst först)</option>
+                        <option value="cost-desc">Kostnad (Dyrast först)</option>
+                        <option value="cost-asc">Kostnad (Billigast först)</option>
+                        <option value="year-asc">Planerat År (Tidigast först)</option>
+                    </select>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-semibold text-slate-500 mb-1">Sök åtgärd / komponent</label>
+                    <input type="text" id="search-input" onkeyup="window.renderTable()" placeholder="Sök..." class="w-full text-sm border border-slate-300 rounded-lg p-2 focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+                </div>
+            </div>
+        </div>
+
+        <!-- Spreadsheet / Data Table -->
+        <div class="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+            <div class="overflow-x-auto">
+                <table class="w-full text-left text-sm border-collapse">
+                    <thead>
+                        <tr class="bg-slate-100 text-slate-700 text-xs uppercase font-semibold border-b border-slate-200">
+                            <th class="py-3.5 px-4">Område</th>
+                            <th class="py-3.5 px-4">Komponent / Åtgärd</th>
+                            <th class="py-3.5 px-4 text-center">År</th>
+                            <th class="py-3.5 px-4 text-center">Brådska (1-5)</th>
+                            <th class="py-3.5 px-4 text-center">Skaderisk (1-5)</th>
+                            <th class="py-3.5 px-4 text-center">Enkelhet (1-5)</th>
+                            <th class="py-3.5 px-4 text-right">Kostnad</th>
+                            <th class="py-3.5 px-4 text-center">Kostnadsscore</th>
+                            <th class="py-3.5 px-4 text-center">Prio-Index</th>
+                            <th class="py-3.5 px-4 text-center">Status</th>
+                            <th class="py-3.5 px-4 text-center">Åtgärd</th>
+                        </tr>
+                    </thead>
+                    <tbody id="table-body" class="divide-y divide-slate-100">
+                        <!-- Dynamic Rows loaded via JS -->
+                    </tbody>
+                </table>
+            </div>
+            <div id="empty-state" class="hidden py-12 text-center text-slate-400 text-sm">
+                Inga åtgärder hittades som matchar dina filter.
+            </div>
+        </div>
+
+    </main>
+
+    <!-- Modal for Adding / Editing Items -->
+    <div id="item-modal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm hidden items-center justify-center p-4 z-50">
+        <div class="bg-white rounded-2xl shadow-xl border border-slate-200 w-full max-w-xl overflow-hidden">
+            <div class="bg-slate-900 px-6 py-4 text-white flex justify-between items-center">
+                <h3 id="modal-title" class="text-lg font-bold">Lägg till ny åtgärd</h3>
+                <button onclick="window.closeModal()" class="text-slate-400 hover:text-white transition-colors">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                </button>
+            </div>
+
+            <form id="item-form" onsubmit="window.saveItem(event)" class="p-6 space-y-4">
+                <input type="hidden" id="item-id">
+
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-700 mb-1">Kategori</label>
+                        <select id="modal-category" required class="w-full text-sm border border-slate-300 rounded-lg p-2.5 focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+                            <option value="Invändigt">Invändigt</option>
+                            <option value="Utvändigt">Utvändigt</option>
+                            <option value="Utemiljö">Utemiljö</option>
+                        </select>
+                    </div>
+
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-700 mb-1">Byggdel / Komponent</label>
+                        <input type="text" id="modal-component" placeholder="t.ex. Fasad, Värmepump" required class="w-full text-sm border border-slate-300 rounded-lg p-2.5 focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-semibold text-slate-700 mb-1">Åtgärd / Beskrivning</label>
+                    <input type="text" id="modal-action" placeholder="t.ex. Måla om träpanel i söderläge" required class="w-full text-sm border border-slate-300 rounded-lg p-2.5 focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+                </div>
+
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-700 mb-1">Planerat År</label>
+                        <input type="number" id="modal-year" min="2024" max="2040" value="2026" required class="w-full text-sm border border-slate-300 rounded-lg p-2.5 focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+                    </div>
+
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-700 mb-1">Uppskattad Kostnad (kr)</label>
+                        <input type="number" id="modal-cost" min="0" step="500" placeholder="0" required class="w-full text-sm border border-slate-300 rounded-lg p-2.5 focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+                    </div>
+                </div>
+
+                <!-- Matrix Scores Inputs -->
+                <div class="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-3">
+                    <h4 class="text-xs font-bold text-slate-700 uppercase tracking-wider">Prioriteringsfaktorer (1–5)</h4>
+                    
+                    <div class="grid grid-cols-3 gap-3 text-center">
+                        <div>
+                            <label class="block text-xs text-slate-600 font-medium mb-1" title="1 = Kan vänta, 5 = Akut">Brådska (1-5)</label>
+                            <input type="number" id="modal-urgency" min="1" max="5" value="3" required class="w-full text-center font-bold text-sm border border-slate-300 rounded-lg p-2 focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+                        </div>
+
+                        <div>
+                            <label class="block text-xs text-slate-600 font-medium mb-1" title="1 = Liten risk, 5 = Stor risk för följdskada">Följdrisk (1-5)</label>
+                            <input type="number" id="modal-risk" min="1" max="5" value="3" required class="w-full text-center font-bold text-sm border border-slate-300 rounded-lg p-2 focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+                        </div>
+
+                        <div>
+                            <label class="block text-xs text-slate-600 font-medium mb-1" title="1 = Komplex entreprenad, 5 = Gör själv / Enkelt">Enkelhet (1-5)</label>
+                            <input type="number" id="modal-ease" min="1" max="5" value="3" required class="w-full text-center font-bold text-sm border border-slate-300 rounded-lg p-2 focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+                        </div>
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-semibold text-slate-700 mb-1">Status</label>
+                    <select id="modal-status" class="w-full text-sm border border-slate-300 rounded-lg p-2.5 focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+                        <option value="Ej påbörjad">Ej påbörjad</option>
+                        <option value="Pågående">Pågående</option>
+                        <option value="Klar">Klar</option>
+                    </select>
+                </div>
+
+                <div class="flex justify-end gap-3 pt-3 border-t border-slate-100">
+                    <button type="button" onclick="window.closeModal()" class="px-4 py-2 text-sm text-slate-600 hover:text-slate-800 font-medium rounded-lg">Avbryt</button>
+                    <button type="submit" class="px-5 py-2 text-sm bg-emerald-600 hover:bg-emerald-500 text-white font-semibold rounded-lg shadow-sm transition-colors">Spara Åtgärd</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Confirmation Modal (Replaces browser alert/confirm) -->
+    <div id="confirm-modal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm hidden items-center justify-center p-4 z-50">
+        <div class="bg-white rounded-xl shadow-xl border border-slate-200 w-full max-w-md p-6 text-center space-y-4">
+            <div class="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-rose-100 text-rose-600">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                </svg>
+            </div>
+            <h3 id="confirm-title" class="text-lg font-bold text-slate-900">Bekräfta åtgärd</h3>
+            <p id="confirm-message" class="text-sm text-slate-600">Är du säker på att du vill fortsätta?</p>
+            <div class="flex justify-center gap-3 pt-2">
+                <button onclick="window.closeConfirmModal(false)" class="px-4 py-2 text-sm bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium rounded-lg">Avbryt</button>
+                <button id="confirm-action-btn" onclick="window.closeConfirmModal(true)" class="px-4 py-2 text-sm bg-rose-600 hover:bg-rose-500 text-white font-semibold rounded-lg shadow-sm">Ja, genomför</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Firebase SDK & Real-time Synchronization App Logic -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, collection, doc, setDoc, deleteDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // Firebase Configuration setup
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'underhallsplan-app';
+        const firebaseConfig = typeof __firebase_config !== 'undefined' 
+            ? JSON.parse(__firebase_config) 
+            : { apiKey: "demo-key", authDomain: "demo.firebaseapp.com", projectId: "demo-project" };
+
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+
+        let items = [];
+        let pendingConfirmAction = null;
+
+        // Standard Demo Data
+        const defaultData = [
+            { id: "1", category: "Utvändigt", component: "Hängrännor & Stupelör", action: "Rensa och täta skarvar vid entré", year: 2026, urgency: 5, risk: 5, ease: 5, cost: 2500, status: "Ej påbörjad" },
+            { id: "2", category: "Utvändigt", component: "Träfasad Söderläge", action: "Skrapa och måla om två skikt", year: 2026, urgency: 4, risk: 4, ease: 3, cost: 35000, status: "Ej påbörjad" },
+            { id: "3", category: "Invändigt", component: "Värmepump (IVT)", action: "Serva, byta filter och kontrollera tryck", year: 2026, urgency: 4, risk: 3, ease: 4, cost: 3000, status: "Pågående" },
+            { id: "4", category: "Invändigt", component: "Badrum Plan 1", action: "Byta sil och silikonskarvar i dusch", year: 2026, urgency: 3, risk: 4, ease: 5, cost: 1200, status: "Ej påbörjad" },
+            { id: "5", category: "Utemiljö", component: "Trädeck/Altan", action: "Tvätta och olja in altandäck", year: 2027, urgency: 2, risk: 2, ease: 4, cost: 4000, status: "Ej påbörjad" },
+            { id: "6", category: "Utvändigt", component: "Takpapp & Läkt", action: "Omläggning av tegeltak och underlagsduk", year: 2028, urgency: 3, risk: 5, ease: 1, cost: 180000, status: "Ej påbörjad" },
+            { id: "7", category: "Utemiljö", component: "Dagvattenbrunn", action: "Inspektera och rensa från löv/grus", year: 2026, urgency: 4, risk: 4, ease: 4, cost: 0, status: "Klar" }
+        ];
+
+        // Mandatory Firebase Firestore strict collection path rule
+        const itemsCollection = collection(db, 'artifacts', appId, 'public', 'data', 'maintenance_items');
+
+        async function initCloudSync() {
+            try {
+                if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                    await signInWithCustomToken(auth, __initial_auth_token);
+                } else {
+                    await signInAnonymously(auth);
+                }
+
+                // Subscribe to real-time updates
+                onSnapshot(itemsCollection, (snapshot) => {
+                    if (snapshot.empty) {
+                        // Seed default data if database is empty
+                        seedDefaultData();
+                    } else {
+                        items = [];
+                        snapshot.forEach((doc) => {
+                            items.push({ id: doc.id, ...doc.data() });
+                        });
+                        window.renderTable();
+                        updateSyncBadge(true);
+                    }
+                }, (error) => {
+                    console.error("Cloud sync error:", error);
+                    updateSyncBadge(false);
+                });
+
+            } catch (err) {
+                console.warn("Falling back to local cache:", err);
+                items = JSON.parse(localStorage.getItem('maintenance_items')) || defaultData;
+                window.renderTable();
+                updateSyncBadge(false);
+            }
+        }
+
+        async function seedDefaultData() {
+            for (const item of defaultData) {
+                const docRef = doc(itemsCollection, item.id);
+                await setDoc(docRef, item);
+            }
+        }
+
+        function updateSyncBadge(isOnline) {
+            const badge = document.getElementById('sync-status');
+            if (isOnline) {
+                badge.className = "inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-500/20 text-emerald-300 border border-emerald-500/30";
+                badge.innerHTML = `<span class="w-2 h-2 rounded-full bg-emerald-400"></span> Sammankopplad & Molnsynkad`;
+            } else {
+                badge.className = "inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-500/20 text-amber-300 border border-amber-500/30";
+                badge.innerHTML = `<span class="w-2 h-2 rounded-full bg-amber-400"></span> Lokal vy / Fristående`;
+            }
+        }
+
+        // Calculation Helpers
+        function calculateCostScore(cost) {
+            if (cost <= 3000) return 5;
+            if (cost <= 15000) return 4;
+            if (cost <= 50000) return 3;
+            if (cost <= 120000) return 2;
+            return 1;
+        }
+
+        function calculatePrioIndex(item) {
+            const costScore = calculateCostScore(item.cost);
+            const prio = (item.urgency * 1.5) + (item.risk * 1.5) + item.ease + costScore;
+            return Math.round(prio * 10) / 10;
+        }
+
+        window.renderTable = function() {
+            const categoryFilter = document.getElementById('filter-category').value;
+            const statusFilter = document.getElementById('filter-status').value;
+            const sortBy = document.getElementById('sort-by').value;
+            const searchQuery = document.getElementById('search-input').value.toLowerCase();
+
+            let filtered = items.filter(item => {
+                const matchesCat = categoryFilter === 'Alla' || item.category === categoryFilter;
+                const matchesStatus = statusFilter === 'Alla' || item.status === statusFilter;
+                const matchesSearch = item.component.toLowerCase().includes(searchQuery) || item.action.toLowerCase().includes(searchQuery);
+                return matchesCat && matchesStatus && matchesSearch;
+            });
+
+            // Sorting
+            filtered.sort((a, b) => {
+                const prioA = calculatePrioIndex(a);
+                const prioB = calculatePrioIndex(b);
+                if (sortBy === 'prio-desc') return prioB - prioA;
+                if (sortBy === 'prio-asc') return prioA - prioB;
+                if (sortBy === 'cost-desc') return b.cost - a.cost;
+                if (sortBy === 'cost-asc') return a.cost - b.cost;
+                if (sortBy === 'year-asc') return a.year - b.year;
+                return 0;
+            });
+
+            const tbody = document.getElementById('table-body');
+            tbody.innerHTML = '';
+
+            if (filtered.length === 0) {
+                document.getElementById('empty-state').classList.remove('hidden');
+            } else {
+                document.getElementById('empty-state').classList.add('hidden');
+            }
+
+            filtered.forEach(item => {
+                const prio = calculatePrioIndex(item);
+                const costScore = calculateCostScore(item.cost);
+
+                let prioBadgeClass = "bg-slate-100 text-slate-700";
+                if (prio >= 20) prioBadgeClass = "bg-emerald-100 text-emerald-800 border border-emerald-300 font-bold";
+                else if (prio >= 15) prioBadgeClass = "bg-blue-100 text-blue-800 font-semibold";
+                else if (prio < 12) prioBadgeClass = "bg-slate-100 text-slate-600";
+
+                let statusBadge = "bg-slate-100 text-slate-700";
+                if (item.status === 'Pågående') statusBadge = "bg-amber-100 text-amber-800 font-medium";
+                if (item.status === 'Klar') statusBadge = "bg-emerald-50 text-emerald-700 border border-emerald-200";
+
+                const tr = document.createElement('tr');
+                tr.className = "hover:bg-slate-50/80 transition-colors border-b border-slate-100";
+                tr.innerHTML = `
+                    <td class="py-3 px-4">
+                        <span class="text-xs font-semibold px-2 py-1 rounded-md ${getCategoryStyle(item.category)}">
+                            ${item.category}
+                        </span>
+                    </td>
+                    <td class="py-3 px-4">
+                        <div class="font-semibold text-slate-900">${escapeHtml(item.component)}</div>
+                        <div class="text-xs text-slate-500 mt-0.5">${escapeHtml(item.action)}</div>
+                    </td>
+                    <td class="py-3 px-4 text-center font-medium text-slate-700">${item.year}</td>
+                    <td class="py-3 px-4 text-center font-medium">${item.urgency} / 5</td>
+                    <td class="py-3 px-4 text-center font-medium ${item.risk >= 4 ? 'text-amber-600 font-bold' : ''}">${item.risk} / 5</td>
+                    <td class="py-3 px-4 text-center font-medium">${item.ease} / 5</td>
+                    <td class="py-3 px-4 text-right font-medium text-slate-900">${item.cost.toLocaleString('sv-SE')} kr</td>
+                    <td class="py-3 px-4 text-center text-xs text-slate-500 font-mono">${costScore} / 5</td>
+                    <td class="py-3 px-4 text-center">
+                        <span class="inline-block px-2.5 py-1 rounded-full text-xs ${prioBadgeClass}">
+                            ${prio}
+                        </span>
+                    </td>
+                    <td class="py-3 px-4 text-center">
+                        <span class="inline-block px-2.5 py-1 rounded-md text-xs ${statusBadge}">
+                            ${item.status}
+                        </span>
+                    </td>
+                    <td class="py-3 px-4 text-center space-x-2">
+                        <button onclick="window.editItem('${item.id}')" class="text-slate-400 hover:text-slate-700 text-xs font-medium">Redigera</button>
+                        <button onclick="window.confirmDelete('${item.id}')" class="text-rose-400 hover:text-rose-600 text-xs font-medium">Ta bort</button>
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+
+            updateKPIs();
+            localStorage.setItem('maintenance_items', JSON.stringify(items));
+        };
+
+        function getCategoryStyle(cat) {
+            if (cat === 'Invändigt') return 'bg-purple-50 text-purple-700 border border-purple-200';
+            if (cat === 'Utvändigt') return 'bg-sky-50 text-sky-700 border border-sky-200';
+            return 'bg-emerald-50 text-emerald-700 border border-emerald-200';
+        }
+
+        function updateKPIs() {
+            document.getElementById('kpi-total-items').innerText = items.length;
+            
+            const quickWins = items.filter(i => calculatePrioIndex(i) >= 20 && i.status !== 'Klar').length;
+            document.getElementById('kpi-quick-wins').innerText = quickWins;
+
+            const urgent = items.filter(i => (i.urgency >= 4 || i.risk >= 4) && i.status !== 'Klar').length;
+            document.getElementById('kpi-urgent').innerText = urgent;
+
+            const totalCost = items.reduce((sum, item) => sum + (item.status !== 'Klar' ? Number(item.cost) : 0), 0);
+            document.getElementById('kpi-total-cost').innerText = totalCost.toLocaleString('sv-SE') + " kr";
+        }
+
+        // Modal Handlers
+        window.openModal = function() {
+            document.getElementById('item-form').reset();
+            document.getElementById('item-id').value = '';
+            document.getElementById('modal-title').innerText = 'Lägg till ny åtgärd';
+            document.getElementById('item-modal').classList.remove('hidden');
+            document.getElementById('item-modal').classList.add('flex');
+        };
+
+        window.closeModal = function() {
+            document.getElementById('item-modal').classList.add('hidden');
+            document.getElementById('item-modal').classList.remove('flex');
+        };
+
+        window.editItem = function(id) {
+            const item = items.find(i => String(i.id) === String(id));
+            if (!item) return;
+
+            document.getElementById('item-id').value = item.id;
+            document.getElementById('modal-category').value = item.category;
+            document.getElementById('modal-component').value = item.component;
+            document.getElementById('modal-action').value = item.action;
+            document.getElementById('modal-year').value = item.year;
+            document.getElementById('modal-cost').value = item.cost;
+            document.getElementById('modal-urgency').value = item.urgency;
+            document.getElementById('modal-risk').value = item.risk;
+            document.getElementById('modal-ease').value = item.ease;
+            document.getElementById('modal-status').value = item.status;
+
+            document.getElementById('modal-title').innerText = 'Redigera åtgärd';
+            document.getElementById('item-modal').classList.remove('hidden');
+            document.getElementById('item-modal').classList.add('flex');
+        };
+
+        window.saveItem = async function(e) {
+            e.preventDefault();
+            const id = document.getElementById('item-id').value || String(Date.now());
+            
+            const newItem = {
+                category: document.getElementById('modal-category').value,
+                component: document.getElementById('modal-component').value,
+                action: document.getElementById('modal-action').value,
+                year: parseInt(document.getElementById('modal-year').value),
+                cost: parseFloat(document.getElementById('modal-cost').value) || 0,
+                urgency: parseInt(document.getElementById('modal-urgency').value),
+                risk: parseInt(document.getElementById('modal-risk').value),
+                ease: parseInt(document.getElementById('modal-ease').value),
+                status: document.getElementById('modal-status').value
+            };
+
+            window.closeModal();
+
+            try {
+                // Save to cloud
+                const docRef = doc(itemsCollection, id);
+                await setDoc(docRef, newItem);
+            } catch (err) {
+                console.error("Firestore save error:", err);
+                const idx = items.findIndex(i => String(i.id) === String(id));
+                if (idx !== -1) items[idx] = { id, ...newItem };
+                else items.push({ id, ...newItem });
+                window.renderTable();
+            }
+        };
+
+        window.confirmDelete = function(id) {
+            document.getElementById('confirm-title').innerText = "Ta bort åtgärd";
+            document.getElementById('confirm-message').innerText = "Är du säker på att du vill ta bort denna underhållsåtgärd?";
+            pendingConfirmAction = async () => {
+                try {
+                    await deleteDoc(doc(itemsCollection, String(id)));
+                } catch (err) {
+                    items = items.filter(i => String(i.id) !== String(id));
+                    window.renderTable();
+                }
+            };
+            document.getElementById('confirm-modal').classList.remove('hidden');
+            document.getElementById('confirm-modal').classList.add('flex');
+        };
+
+        window.confirmReset = function() {
+            document.getElementById('confirm-title').innerText = "Återställ Demo-data";
+            document.getElementById('confirm-message').innerText = "Vill du återställa till standard-exempeln? (Befintliga ändringar skrivs över för alla användare)";
+            pendingConfirmAction = async () => {
+                try {
+                    for (const item of items) {
+                        await deleteDoc(doc(itemsCollection, String(item.id)));
+                    }
+                    await seedDefaultData();
+                } catch (err) {
+                    items = [...defaultData];
+                    window.renderTable();
+                }
+            };
+            document.getElementById('confirm-modal').classList.remove('hidden');
+            document.getElementById('confirm-modal').classList.add('flex');
+        };
+
+        window.closeConfirmModal = function(confirmed) {
+            document.getElementById('confirm-modal').classList.add('hidden');
+            document.getElementById('confirm-modal').classList.remove('flex');
+            if (confirmed && pendingConfirmAction) {
+                pendingConfirmAction();
+            }
+            pendingConfirmAction = null;
+        };
+
+        // CSV Export Functionality
+        window.exportToCSV = function() {
+            const headers = ["Kategori", "Byggdel/Komponent", "Åtgärd", "År", "Brådska (1-5)", "Följdskaderisk (1-5)", "Enkelhet (1-5)", "Kostnad (kr)", "Kostnadsscore", "Prio-Index", "Status"];
+            
+            const rows = items.map(i => [
+                `"${i.category}"`,
+                `"${i.component.replace(/"/g, '""')}"`,
+                `"${i.action.replace(/"/g, '""')}"`,
+                i.year,
+                i.urgency,
+                i.risk,
+                i.ease,
+                i.cost,
+                calculateCostScore(i.cost),
+                calculatePrioIndex(i),
+                `"${i.status}"`
+            ]);
+
+            let csvContent = "\uFEFF" + headers.join(";") + "\n" + rows.map(e => e.join(";")).join("\n");
+            
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement("a");
+            link.setAttribute("href", url);
+            link.setAttribute("download", `Underhållsplan_${new Date().toISOString().slice(0,10)}.csv`);
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        };
+
+        function escapeHtml(str) {
+            return str ? str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;") : '';
+        }
+
+        // Initialize application and cloud sync
+        initCloudSync();
+    </script>
+</body>
+</html>
