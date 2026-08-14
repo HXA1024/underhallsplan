@@ -60,9 +60,6 @@
                     </svg>
                     Exportera till Excel (CSV)
                 </button>
-                <button onclick="window.confirmReset()" class="inline-flex items-center gap-2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-sm font-medium px-3 py-2 rounded-lg transition-colors border border-slate-700">
-                    Återställ Demo-data
-                </button>
             </div>
         </div>
     </header>
@@ -323,32 +320,35 @@
 
         // Firebase Configuration setup
         const appId = typeof __app_id !== 'undefined' ? __app_id : 'underhallsplan-app';
-        const firebaseConfig = typeof __firebase_config !== 'undefined' 
-            ? JSON.parse(__firebase_config) 
-            : { apiKey: "demo-key", authDomain: "demo.firebaseapp.com", projectId: "demo-project" };
+        const firebaseConfig = {
+            apiKey: "AIzaSyCDRZbJXCUVSQqzhywmDGt81Os2ezkE_a8",
+            authDomain: "underhall-62ae1.firebaseapp.com",
+            projectId: "underhall-62ae1",
+            storageBucket: "underhall-62ae1.firebasestorage.app",
+            messagingSenderId: "80287012347",
+            appId: "1:80287012347:web:57dbf255d97042e39be75e"
+        };
 
-        const app = initializeApp(firebaseConfig);
-        const auth = getAuth(app);
-        const db = getFirestore(app);
+        // Initialize Firebase services safely
+        let app, auth, db, itemsCollection;
+        try {
+            app = initializeApp(firebaseConfig);
+            auth = getAuth(app);
+            db = getFirestore(app);
+            itemsCollection = collection(db, 'artifacts', appId, 'public', 'data', 'maintenance_items');
+        } catch (e) {
+            console.warn("Could not initialize Firebase SDK:", e);
+        }
 
         let items = [];
         let pendingConfirmAction = null;
 
-        // Standard Demo Data
-        const defaultData = [
-            { id: "1", category: "Utvändigt", component: "Hängrännor & Stupelör", action: "Rensa och täta skarvar vid entré", year: 2026, urgency: 5, risk: 5, ease: 5, cost: 2500, status: "Ej påbörjad" },
-            { id: "2", category: "Utvändigt", component: "Träfasad Söderläge", action: "Skrapa och måla om två skikt", year: 2026, urgency: 4, risk: 4, ease: 3, cost: 35000, status: "Ej påbörjad" },
-            { id: "3", category: "Invändigt", component: "Värmepump (IVT)", action: "Serva, byta filter och kontrollera tryck", year: 2026, urgency: 4, risk: 3, ease: 4, cost: 3000, status: "Pågående" },
-            { id: "4", category: "Invändigt", component: "Badrum Plan 1", action: "Byta sil och silikonskarvar i dusch", year: 2026, urgency: 3, risk: 4, ease: 5, cost: 1200, status: "Ej påbörjad" },
-            { id: "5", category: "Utemiljö", component: "Trädeck/Altan", action: "Tvätta och olja in altandäck", year: 2027, urgency: 2, risk: 2, ease: 4, cost: 4000, status: "Ej påbörjad" },
-            { id: "6", category: "Utvändigt", component: "Takpapp & Läkt", action: "Omläggning av tegeltak och underlagsduk", year: 2028, urgency: 3, risk: 5, ease: 1, cost: 180000, status: "Ej påbörjad" },
-            { id: "7", category: "Utemiljö", component: "Dagvattenbrunn", action: "Inspektera och rensa från löv/grus", year: 2026, urgency: 4, risk: 4, ease: 4, cost: 0, status: "Klar" }
-        ];
-
-        // Mandatory Firebase Firestore strict collection path rule
-        const itemsCollection = collection(db, 'artifacts', appId, 'public', 'data', 'maintenance_items');
-
         async function initCloudSync() {
+            if (!db || !itemsCollection) {
+                loadLocalFallback();
+                return;
+            }
+
             try {
                 if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
                     await signInWithCustomToken(auth, __initial_auth_token);
@@ -358,35 +358,28 @@
 
                 // Subscribe to real-time updates
                 onSnapshot(itemsCollection, (snapshot) => {
-                    if (snapshot.empty) {
-                        // Seed default data if database is empty
-                        seedDefaultData();
-                    } else {
-                        items = [];
-                        snapshot.forEach((doc) => {
-                            items.push({ id: doc.id, ...doc.data() });
-                        });
-                        window.renderTable();
-                        updateSyncBadge(true);
-                    }
+                    items = [];
+                    snapshot.forEach((doc) => {
+                        items.push({ id: doc.id, ...doc.data() });
+                    });
+                    window.renderTable();
+                    updateSyncBadge(true);
                 }, (error) => {
                     console.error("Cloud sync error:", error);
-                    updateSyncBadge(false);
+                    loadLocalFallback();
                 });
 
             } catch (err) {
                 console.warn("Falling back to local cache:", err);
-                items = JSON.parse(localStorage.getItem('maintenance_items')) || defaultData;
-                window.renderTable();
-                updateSyncBadge(false);
+                loadLocalFallback();
             }
         }
 
-        async function seedDefaultData() {
-            for (const item of defaultData) {
-                const docRef = doc(itemsCollection, item.id);
-                await setDoc(docRef, item);
-            }
+        function loadLocalFallback() {
+            const cached = localStorage.getItem('maintenance_items');
+            items = cached ? JSON.parse(cached) : [];
+            window.renderTable();
+            updateSyncBadge(false);
         }
 
         function updateSyncBadge(isOnline) {
@@ -574,11 +567,14 @@
             window.closeModal();
 
             try {
-                // Save to cloud
-                const docRef = doc(itemsCollection, id);
-                await setDoc(docRef, newItem);
+                if (itemsCollection) {
+                    const docRef = doc(itemsCollection, id);
+                    await setDoc(docRef, newItem);
+                } else {
+                    throw new Error("No database instance");
+                }
             } catch (err) {
-                console.error("Firestore save error:", err);
+                console.warn("Saving to local storage fallback:", err);
                 const idx = items.findIndex(i => String(i.id) === String(id));
                 if (idx !== -1) items[idx] = { id, ...newItem };
                 else items.push({ id, ...newItem });
@@ -591,27 +587,13 @@
             document.getElementById('confirm-message').innerText = "Är du säker på att du vill ta bort denna underhållsåtgärd?";
             pendingConfirmAction = async () => {
                 try {
-                    await deleteDoc(doc(itemsCollection, String(id)));
+                    if (itemsCollection) {
+                        await deleteDoc(doc(itemsCollection, String(id)));
+                    } else {
+                        throw new Error("No database instance");
+                    }
                 } catch (err) {
                     items = items.filter(i => String(i.id) !== String(id));
-                    window.renderTable();
-                }
-            };
-            document.getElementById('confirm-modal').classList.remove('hidden');
-            document.getElementById('confirm-modal').classList.add('flex');
-        };
-
-        window.confirmReset = function() {
-            document.getElementById('confirm-title').innerText = "Återställ Demo-data";
-            document.getElementById('confirm-message').innerText = "Vill du återställa till standard-exempeln? (Befintliga ändringar skrivs över för alla användare)";
-            pendingConfirmAction = async () => {
-                try {
-                    for (const item of items) {
-                        await deleteDoc(doc(itemsCollection, String(item.id)));
-                    }
-                    await seedDefaultData();
-                } catch (err) {
-                    items = [...defaultData];
                     window.renderTable();
                 }
             };
